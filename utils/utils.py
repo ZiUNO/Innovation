@@ -3,9 +3,10 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
+
 # from OpenGL.GL import *
 # from OpenGL.GLU import *
-
 
 
 def read_square_image(file, cam, boxsize, type):
@@ -23,9 +24,11 @@ def read_square_image(file, cam, boxsize, type):
 
     if imageToTest.shape[1] < boxsize:
         offset = imageToTest.shape[1] % 2
-        output_img[:, int(boxsize/2-math.ceil(imageToTest.shape[1]/2)):int(boxsize/2+math.ceil(imageToTest.shape[1]/2)+offset), :] = imageToTest
+        output_img[:, int(boxsize / 2 - math.ceil(imageToTest.shape[1] / 2)):int(
+            boxsize / 2 + math.ceil(imageToTest.shape[1] / 2) + offset), :] = imageToTest
     else:
-        output_img = imageToTest[:, int(imageToTest.shape[1]/2-boxsize/2):int(imageToTest.shape[1]/2+boxsize/2), :]
+        output_img = imageToTest[:,
+                     int(imageToTest.shape[1] / 2 - boxsize / 2):int(imageToTest.shape[1] / 2 + boxsize / 2), :]
     return output_img
 
 
@@ -35,7 +38,7 @@ def resize_pad_img(img, scale, output_size):
     pad_w = (output_size - resized_img.shape[1]) // 2
     pad_h_offset = (output_size - resized_img.shape[0]) % 2
     pad_w_offset = (output_size - resized_img.shape[1]) % 2
-    resized_pad_img = np.pad(resized_img, ((pad_w, pad_w+pad_w_offset), (pad_h, pad_h+pad_h_offset), (0, 0)),
+    resized_pad_img = np.pad(resized_img, ((pad_w, pad_w + pad_w_offset), (pad_h, pad_h + pad_h_offset), (0, 0)),
                              mode='constant', constant_values=128)
 
     return resized_pad_img
@@ -43,17 +46,17 @@ def resize_pad_img(img, scale, output_size):
 
 def img_white_balance(img, white_ratio):
     for channel in range(img.shape[2]):
-        channel_max = np.percentile(img[:, :, channel], 100-white_ratio)
+        channel_max = np.percentile(img[:, :, channel], 100 - white_ratio)
         channel_min = np.percentile(img[:, :, channel], white_ratio)
-        img[:, :, channel] = (channel_max-channel_min) * (img[:, :, channel] / 255.0)
+        img[:, :, channel] = (channel_max - channel_min) * (img[:, :, channel] / 255.0)
     return img
 
 
 def img_white_balance_with_bg(img, bg, white_ratio):
     for channel in range(img.shape[2]):
-        channel_max = np.percentile(bg[:, :, channel], 100-white_ratio)
+        channel_max = np.percentile(bg[:, :, channel], 100 - white_ratio)
         channel_min = np.percentile(bg[:, :, channel], white_ratio)
-        img[:, :, channel] = (channel_max-channel_min) * (img[:, :, channel] / 255.0)
+        img[:, :, channel] = (channel_max - channel_min) * (img[:, :, channel] / 255.0)
     return img
 
 
@@ -69,13 +72,15 @@ def draw_predicted_heatmap(heatmap, input_size):
                 if tmp_concat_img is not None else heatmap_resized[:, :, joint_num]
             h_count += 1
         else:
-            output_img = np.concatenate((output_img, tmp_concat_img), axis=0) if output_img is not None else tmp_concat_img
+            output_img = np.concatenate((output_img, tmp_concat_img),
+                                        axis=0) if output_img is not None else tmp_concat_img
             tmp_concat_img = None
             h_count = 0
     # last row img
     if h_count != 0:
         while h_count < 4:
-            tmp_concat_img = np.concatenate((tmp_concat_img, np.zeros(shape=(input_size, input_size), dtype=np.float32)), axis=1)
+            tmp_concat_img = np.concatenate(
+                (tmp_concat_img, np.zeros(shape=(input_size, input_size), dtype=np.float32)), axis=1)
             h_count += 1
         output_img = np.concatenate((output_img, tmp_concat_img), axis=0)
 
@@ -86,12 +91,11 @@ def draw_predicted_heatmap(heatmap, input_size):
 
 
 def draw_stages_heatmaps(stage_heatmap_list, orig_img_size):
-
     output_img = None
     nStages = len(stage_heatmap_list)
     nJoints = stage_heatmap_list[0].shape[3]
     for stage in range(nStages):
-        cur_heatmap = np.squeeze(stage_heatmap_list[0][0, :, :, 0:nJoints-1])
+        cur_heatmap = np.squeeze(stage_heatmap_list[0][0, :, :, 0:nJoints - 1])
         cur_heatmap = cv2.resize(cur_heatmap, (orig_img_size, orig_img_size))
 
         channel_max = np.percentile(cur_heatmap, 99)
@@ -100,10 +104,16 @@ def draw_stages_heatmaps(stage_heatmap_list, orig_img_size):
         cur_heatmap = np.clip(cur_heatmap, 0, 255)
 
 
+        cur_heatmap = np.repeat(np.expand_dims(np.amax(cur_heatmap, axis=2), axis=2), 3, axis=2)
+        output_img = np.concatenate((output_img, cur_heatmap), axis=1) if output_img is not None else cur_heatmap
+    return output_img.astype(np.uint8)
 
 
+def extract_2d_joint_from_heatmap(heatmap, input_size, joints_2d):
+    heatmap_resized = cv2.resize(heatmap, (input_size, input_size))
 
+    for joint_num in range(heatmap_resized.shape[2]):
+        joint_coord = np.unravel_index(np.argmax(heatmap_resized[:, :, joint_num]), (input_size, input_size))
+        joints_2d[joint_num, :] = joint_coord
 
-
-
-
+    return joints_2d
