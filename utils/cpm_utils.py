@@ -154,3 +154,87 @@ def deg2Rad(deg):
     return deg * (M_PI / 180)
 
 
+def warpMatrix(sw, sh, theta, phi, gamma, scale, fovy):
+    st = math.sin(deg2Rad(theta))
+    ct = math.cos(deg2Rad(theta))
+    sp = math.sin(deg2Rad(phi))
+    cp = math.cos(deg2Rad(phi))
+    sg = math.sin(deg2Rad(gamma))
+    cg = math.cos(deg2Rad(gamma))
+
+    halfFovy = fovy * 0.5
+    d = math.hypot(sw, sh)
+    sideLength = scale * d / math.cos(deg2Rad(halfFovy))
+    h = d / (2.0 * math.sin(deg2Rad(halfFovy)))
+    n = h - (d / 2.0)
+    f = h + (d / 2.0)
+
+    Rtheta = np.identity(4)
+    Rphi = np.identity(4)
+    Rgamma = np.identity(4)
+
+    T = np.identity(4)
+    P = np.zeros((4, 4))
+
+    Rtheta[0, 0] = Rtheta[1, 1] = ct
+    Rtheta[0, 1] = -st
+    Rtheta[1, 0] = st
+
+    Rphi[1, 1] = Rphi[2, 2] = cp
+    Rphi[1, 2] = -sp
+    Rphi[2, 1] = sp
+
+    Rgamma[0, 0] = cg
+    Rgamma[2, 2] = cg
+    Rgamma[0, 2] = sg
+    Rgamma[2, 0] = sg
+
+    T[2, 3] = -h
+
+    P[0, 0] = P[1, 1] = 1.0 / math.tan(deg2Rad(halfFovy))
+    P[2, 2] = -(f + n) / (f - n)
+    P[2, 3] = -(2.0 * f * n) / (f - n)
+    P[3, 2] = -1.0
+
+    F = np.matmul(Rtheta, Rgamma)
+    F = np.matmul(Rphi, F)
+    F = np.matmul(T, F)
+    F = np.matmul(P, F)
+
+    ptsIn = np.zeros(12)
+    ptsOut = np.zeros(12)
+    halfW = sw / 2
+    halfH = sh / 2
+
+    ptsIn[0] = -halfW
+    ptsIn[1] = halfH
+    ptsIn[3] = halfW
+    ptsIn[4] = halfH
+    ptsIn[6] = halfW
+    ptsIn[7] = -halfH
+    ptsIn[9] = -halfW
+    ptsIn[10] = -halfH
+    ptsIn[2] = ptsIn[5] = ptsIn[8] = ptsIn[11] = 0
+
+    ptsInMat = np.array([[ptsIn[0], ptsIn[1], ptsIn[2]], [ptsIn[3], ptsIn[4], ptsIn[5]], [ptsIn[6], ptsIn[7], ptsIn[8]],
+                         [ptsIn[9], ptsIn[10], ptsIn[11]]], dtype=np.float32)
+    ptsOutMat = np.array(
+        [[ptsOut[0], ptsOut[1], ptsOut[2]], [ptsOut[3], ptsOut[4], ptsOut[5]], [ptsOut[6], ptsOut[7], ptsOut[8]],
+         [ptsOut[9], ptsOut[10], ptsOut[11]]], dtype=np.float32)
+    ptsInMat = np.array([ptsInMat])
+    ptsOutMat = cv2.perspectiveTransform(ptsInMat, F)
+
+    ptsInPt2f = np.array([[0, 0], [0, 0], [0, 0], [0, 0]], dtype=np.float32)
+    ptsOutPt2f = np.array([[0, 0], [0, 0], [0, 0], [0, 0]], dtype=np.float32)
+
+    i = 0
+
+    while i < 4:
+        ptsInPt2f[i][0] = ptsIn[i * 3 + 0] + halfW
+        ptsInPt2f[i][1] = ptsIn[i * 3 + 1] + halfH
+        ptsOutPt2f[i][0] = (ptsOutMat[0][i][0] + 1) * sideLength * 0.5
+        ptsOutPt2f[i][1] = (ptsOutMat[0][i][1] + 1) * sideLength * 0.5
+        i = i + 1
+
+    M = cv2.getPerspectiveTransform(ptsInPt2f, ptsOutPt2f)
+    return M
