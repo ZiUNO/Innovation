@@ -238,3 +238,24 @@ def warpMatrix(sw, sh, theta, phi, gamma, scale, fovy):
 
     M = cv2.getPerspectiveTransform(ptsInPt2f, ptsOutPt2f)
     return M
+def warpImage(src, theta, phi, gamma, scale, fovy):
+    halfFovy = fovy * 0.5
+    d = math.hypot(src.shape[1], src.shape[0])
+    sideLength = scale * d / math.cos(deg2Rad(halfFovy))
+    sideLength = np.int32(sideLength)
+
+    M = warpMatrix(src.shape[1], src.shape[0], theta, phi, gamma, scale, fovy)
+    dst = cv2.warpPerspective(src, M, (sideLength, sideLength))
+    mid_x = mid_y = dst.shape[0] // 2
+    target_x = target_y = src.shape[0] // 2
+    offset = (target_x % 2)
+
+    if len(dst.shape) == 3:
+        dst = dst[mid_y - target_y:mid_y + target_y + offset,
+              mid_x - target_x:mid_x + target_x + offset,
+              :]
+    else:
+        dst = dst[mid_y - target_y:mid_y + target_y + offset,
+              mid_x - target_x:mid_x + target_x + offset]
+
+    return dst
